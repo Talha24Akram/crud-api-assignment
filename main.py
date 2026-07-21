@@ -42,7 +42,7 @@ class TaskUpdate(BaseModel):
 
 
 # --- "database" ---------------------------------------------------------
-# just a list in memory, per the assignment - no db until next week
+# Simple in-memory storage for now (resets on server restart)
 
 tasks: list[dict] = []
 next_id: int = 1
@@ -136,7 +136,7 @@ def delete_task(task_id: int):
 
 
 # --- extras: stats & reset ------------------------------------------------
-# not required, added these once the core five were working
+# Helper endpoints for debugging and metrics
 
 @app.get("/stats")
 def stats():
@@ -152,8 +152,7 @@ def reset():
 
 
 # --- error handling ------------------------------------------------------
-# FastAPI defaults to {"detail": ...} and 422 on validation errors - the
-# assignment wants {"error": ...} and 400, so both get overridden here
+# Override FastAPI's default 422 validation response format with a standard 400 / error shape
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):

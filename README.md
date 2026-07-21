@@ -35,8 +35,7 @@ nice for a quick sanity check.
 | GET    | `/stats`      | `{"total", "done", "open"}` counts         | 200     | —                              |
 | POST   | `/reset`      | Puts the 3 seed tasks back                 | 200     | —                              |
 
-(`/stats` and `/reset` weren't required, just seemed like fun extras once the core five were
-working.)
+(`/stats` and `/reset` are extra helper endpoints added to make testing and debugging easier.)
 
 ## One example
 
@@ -97,5 +96,4 @@ Which is basically the whole point of this stage — the model wasn't the bottle
 
 Create a few tasks, restart the server, and they're gone — back to the original 3. That's
 because everything lives in a Python list in memory rather than anything written to disk. It's
-not a bug, just the tradeoff of skipping a database for this assignment (that's apparently next
-week's problem).
+not a bug, just the tradeoff of keeping storage entirely in-memory.

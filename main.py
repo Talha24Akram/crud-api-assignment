@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 app = FastAPI(title="Task API", version="1.0")
 
@@ -10,6 +10,15 @@ app = FastAPI(title="Task API", version="1.0")
 
 class TaskCreate(BaseModel):
     title: str
+
+    # empty/whitespace titles slip past a plain `str` type check, so this
+    # catches them explicitly instead of letting a blank task get created
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("title must not be empty")
+        return v
 
 # --- "database" ---------------------------------------------------------
 # just a list in memory, per the assignment - no db until next week

@@ -20,6 +20,18 @@ class TaskCreate(BaseModel):
             raise ValueError("title must not be empty")
         return v
 
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    done: Optional[bool] = None
+
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_blank(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.strip():
+            raise ValueError("title must not be empty")
+        return v
+
 # --- "database" ---------------------------------------------------------
 # just a list in memory, per the assignment - no db until next week
 
@@ -79,3 +91,27 @@ def create_task(payload: TaskCreate):
     tasks.append(task)
     next_id += 1
     return task
+
+# --- update & delete ------------------------------------------------------
+
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, payload: TaskUpdate):
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    if payload.title is None and payload.done is None:
+        raise HTTPException(status_code=400, detail="Provide at least title or done")
+    if payload.title is not None:
+        task["title"] = payload.title
+    if payload.done is not None:
+        task["done"] = payload.done
+    return task
+
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    tasks.remove(task)
+    return None

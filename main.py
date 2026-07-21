@@ -63,20 +63,24 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.get("/")
 def root():
+    """Get basic API metadata and available endpoints."""
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
 
 @app.get("/health")
 def health():
+    """Verify that the API server is up and running."""
     return {"status": "ok"}
 
 # --- read -------------------------------------------------------------
 
 @app.get("/tasks")
 def list_tasks():
+    """Retrieve the complete list of tasks."""
     return tasks
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int):
+    """Retrieve details of a single task by its unique ID."""
     task = next((t for t in tasks if t["id"] == task_id), None)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -86,6 +90,7 @@ def get_task(task_id: int):
 
 @app.post("/tasks", status_code=201)
 def create_task(payload: TaskCreate):
+    """Create a new task with the given title."""
     global next_id
     task = {"id": next_id, "title": payload.title, "done": False}
     tasks.append(task)
@@ -96,6 +101,7 @@ def create_task(payload: TaskCreate):
 
 @app.put("/tasks/{task_id}")
 def update_task(task_id: int, payload: TaskUpdate):
+    """Update title and/or done status of an existing task."""
     task = next((t for t in tasks if t["id"] == task_id), None)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -110,6 +116,7 @@ def update_task(task_id: int, payload: TaskUpdate):
 
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int):
+    """Remove a task from the list permanently."""
     task = next((t for t in tasks if t["id"] == task_id), None)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")

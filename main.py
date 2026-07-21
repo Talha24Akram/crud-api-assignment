@@ -1,4 +1,5 @@
 from typing import Optional
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -6,7 +7,14 @@ from pydantic import BaseModel, field_validator
 
 app = FastAPI(title="Task API", version="1.0")
 
+
 # --- models -----------------------------------------------------------
+
+class Task(BaseModel):
+    id: int
+    title: str
+    done: bool = False
+
 
 class TaskCreate(BaseModel):
     title: str
@@ -32,80 +40,84 @@ class TaskUpdate(BaseModel):
             raise ValueError("title must not be empty")
         return v
 
+
 # --- "database" ---------------------------------------------------------
 # just a list in memory, per the assignment - no db until next week
 
-tasks: list[dict] = [
-    {"id": 1, "title": "Buy milk", "done": False},
-    {"id": 2, "title": "Walk the dog", "done": False},
-    {"id": 3, "title": "Write README", "done": True},
-]
-next_id: int = 4
+tasks: list[dict] = []
+next_id: int = 1
 
-# --- error handling ------------------------------------------------------
-# FastAPI defaults to {"detail": ...} and 422 on validation errors - the
-# assignment wants {"error": ...} and 400, so both get overridden here
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+def seed() -> None:
+    global tasks, next_id
+    tasks = [
+        {"id": 1, "title": "Buy milk", "done": False},
+        {"id": 2, "title": "Walk the dog", "done": False},
+        {"id": 3, "title": "Write README", "done": True},
+    ]
+    next_id = 4
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    first_error = exc.errors()[0]
-    field = ".".join(str(p) for p in first_error["loc"] if p != "body")
-    return JSONResponse(
-        status_code=400,
-        content={"error": f"{field}: {first_error['msg']}"},
-    )
+
+seed()
+
+
+def find_task(task_id: int) -> Optional[dict]:
+    return next((t for t in tasks if t["id"] == task_id), None)
+
 
 # --- root & health --------------------------------------------------------
 
 @app.get("/")
 def root():
-    """Get basic API metadata and available endpoints."""
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
+
 
 @app.get("/health")
 def health():
-    """Verify that the API server is up and running."""
     return {"status": "ok"}
+
 
 # --- read -------------------------------------------------------------
 
 @app.get("/tasks")
-def list_tasks():
-    """Retrieve the complete list of tasks."""
-    return tasks
+def list_tasks(done: Optional[bool] = None, search: Optional[str] = None):
+    # optional filtering via query params, e.g. /tasks?done=true&search=milk
+    result = tasks
+    if done is not None:
+        result = [t for t in result if t["done"] == done]
+    if search:
+        result = [t for t in result if search.lower() in t["title"].lower()]
+    return result
+
 
 @app.get("/tasks/{task_id}")
 def get_task(task_id: int):
-    """Retrieve details of a single task by its unique ID."""
-    task = next((t for t in tasks if t["id"] == task_id), None)
+    task = find_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     return task
+
 
 # --- create -------------------------------------------------------------
 
 @app.post("/tasks", status_code=201)
 def create_task(payload: TaskCreate):
-    """Create a new task with the given title."""
     global next_id
     task = {"id": next_id, "title": payload.title, "done": False}
     tasks.append(task)
     next_id += 1
     return task
 
+
 # --- update & delete ------------------------------------------------------
 
 @app.put("/tasks/{task_id}")
 def update_task(task_id: int, payload: TaskUpdate):
-    """Update title and/or done status of an existing task."""
-    task = next((t for t in tasks if t["id"] == task_id), None)
+    task = find_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     if payload.title is None and payload.done is None:
+        # nothing to update - treat as a bad request rather than a silent no-op
         raise HTTPException(status_code=400, detail="Provide at least title or done")
     if payload.title is not None:
         task["title"] = payload.title
@@ -116,9 +128,43 @@ def update_task(task_id: int, payload: TaskUpdate):
 
 @app.delete("/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int):
-    """Remove a task from the list permanently."""
-    task = next((t for t in tasks if t["id"] == task_id), None)
+    task = find_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     tasks.remove(task)
     return None
+
+
+# --- extras: stats & reset ------------------------------------------------
+# not required, added these once the core five were working
+
+@app.get("/stats")
+def stats():
+    total = len(tasks)
+    done_count = sum(1 for t in tasks if t["done"])
+    return {"total": total, "done": done_count, "open": total - done_count}
+
+
+@app.post("/reset")
+def reset():
+    seed()
+    return {"status": "reset", "tasks": tasks}
+
+
+# --- error handling ------------------------------------------------------
+# FastAPI defaults to {"detail": ...} and 422 on validation errors - the
+# assignment wants {"error": ...} and 400, so both get overridden here
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    first_error = exc.errors()[0]
+    field = ".".join(str(p) for p in first_error["loc"] if p != "body")
+    return JSONResponse(
+        status_code=400,
+        content={"error": f"{field}: {first_error['msg']}"},
+    )
